@@ -10,7 +10,7 @@ function generate_queries_for_region(lbs, ubs, cells_per_dim, network_file, quer
     network = read_nnet(network_file)
 
     # Define the coefficients for a linear objective
-    coeffs = [-0.74; -0.44]
+    coefficients = [-0.74; -0.44]
     full_input_region = Hyperrectangle(low=lbs, high=ubs)
     cells = cell_to_all_subcells(full_input_region, cells_per_dim)
 
@@ -31,16 +31,16 @@ function generate_queries_for_region(lbs, ubs, cells_per_dim, network_file, quer
     for i in CartesianIndices(cells)
         cell = cells[i]
         # Run the priority optimizer then the mip splitting optimizer
-        time_max = @elapsed x_star, lower_bound_max, upper_bound_max, cur_steps = optimize_linear(network, cell, coeffs, params; maximize=true)
+        time_max = @elapsed x_star, lower_bound_max, upper_bound_max, cur_steps = optimize_linear(network, cell, coefficients, params; maximize=true)
         times_max[i], lower_bounds_max[i], upper_bounds_max[i] = time_max, lower_bound_max, upper_bound_max
         
-        time_min = @elapsed x_star, lower_bound_min, upper_bound_min, cur_steps = optimize_linear(network, cell, coeffs, params; maximize=false)
-        times_min[i], lower_bounds_min[i], upper_bounds_min[i] = time_in, lower_bound_min, upper_bound_min
+        time_min = @elapsed x_star, lower_bound_min, upper_bound_min, cur_steps = optimize_linear(network, cell, coefficients, params; maximize=false)
+        times_min[i], lower_bounds_min[i], upper_bounds_min[i] = time_min, lower_bound_min, upper_bound_min
 
         println("Cell ", i)
-        println("steps: ", steps)
-        println("lower, upper max: ", lower_bound_max, upper_bound_max)
-        println("lower, upper min: ", lower_bound_min, upper_bound_min)
+        println("min solve steps: ", cur_steps)
+        println("lower, upper max: ", [lower_bound_max, upper_bound_max])
+        println("lower, upper min: ", [lower_bound_min, upper_bound_min])
         println("Time min: ", time_min, "  time max: ", time_max)
 
         epsilon = 0.2 # amount off the true maximum or minimum to point the assertion
