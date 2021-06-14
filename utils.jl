@@ -1,12 +1,14 @@
 using NeuralVerification: compute_output
+using LinearAlgebra
 function sample_based_bounds(network, cell, coefficients, num_samples)
     xs = sample(cell, num_samples)
-    min_output = Inf
-    max_output = -Inf
+    min_obj = Inf
+    max_obj = -Inf
     for x in xs 
         output = compute_output(network, x)
-        min_output = min(min_output, output)
-        max_output = max(max_output, output)
+        obj = dot(output, coefficients)
+        min_obj = min(min_output, obj)
+        max_obj = max(max_output, obj)
     end
-    return [min_output, max_output]
+    return [min_obj, max_obj]
 end
