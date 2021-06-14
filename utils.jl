@@ -7,8 +7,8 @@ function sample_based_bounds(network, cell, coefficients, num_samples)
     for x in xs 
         output = compute_output(network, x)
         obj = dot(output, coefficients)
-        min_obj = min(min_output, obj)
-        max_obj = max(max_output, obj)
+        min_obj = min(min_obj, obj)
+        max_obj = max(max_obj, obj)
     end
     return [min_obj, max_obj]
 end

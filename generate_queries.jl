@@ -4,6 +4,7 @@ using NeuralPriorityOptimizer: cell_to_all_subcells
 using LinearAlgebra 
 using LazySets 
 
+include(string(@__DIR__, "/utils.jl"))
 
 function generate_queries_for_region(lbs, ubs, cells_per_dim, network_file, query_base_name)
     # Read in the network
@@ -15,7 +16,7 @@ function generate_queries_for_region(lbs, ubs, cells_per_dim, network_file, quer
     cells = cell_to_all_subcells(full_input_region, cells_per_dim)
 
     # Parameters for the solvers 
-    params = PriorityOptimizerParameters(stop_gap=1e-4, stop_frequency=10, max_steps=200000) # for the priority solver 
+    params = PriorityOptimizerParameters(stop_gap=1e-4, stop_frequency=10, max_steps=20000000) # for the priority solver 
 
     # Now, time the solvers for each cell and record the optimal values 
     times_max = zeros(cells_per_dim...)
@@ -27,7 +28,7 @@ function generate_queries_for_region(lbs, ubs, cells_per_dim, network_file, quer
     upper_bounds_min = zeros(cells_per_dim...)
 
 
-    i_linear = 0
+    i_linear = 1 # number the queries starting at 1 
     for i in CartesianIndices(cells)
         cell = cells[i]
         # Run the priority optimizer then the mip splitting optimizer
@@ -37,7 +38,7 @@ function generate_queries_for_region(lbs, ubs, cells_per_dim, network_file, quer
         time_min = @elapsed x_star, lower_bound_min, upper_bound_min, steps_min = optimize_linear(network, cell, coefficients, params; maximize=false)
         times_min[i], lower_bounds_min[i], upper_bounds_min[i] = time_min, lower_bound_min, upper_bound_min
 
-	sample_time = @elapsed sample_lower, sample_upper = sample_based_bounds(network, cell, coefficients, 300) 
+	sample_time = @elapsed sample_lower, sample_upper = sample_based_bounds(network, cell, coefficients, 5000) 
 
         println("Cell ", i)
         println("min and max solve steps: ", [steps_min, steps_max])
@@ -54,14 +55,17 @@ function generate_queries_for_region(lbs, ubs, cells_per_dim, network_file, quer
         # (iii) property has -0.74y0 - 0.44y1 >= maximum + epsilon which will be UNSAT (HOLDS that it's < maximum + epsilon)
         # (iv) property has -0.74y0 - 0.44y1 >= maximum - epsilon which will be SAT (VIOLATED that it's < maximum - epsilon)
         output_file = string(query_base_name, "_", string(i_linear), ".vnnlib")
+	# it shouldn't matter upper vs. lower bound here, since they should all be within 1e-4 of each other
+	@assert abs(upper_bound_max - lower_bound_max) <= 1e-4 "gap should be <= 1e-4"
+	@assert abs(upper_bound_min - lower_bound_min) <= 1e-4 "gap should be <= 1e-4"
         if i_linear % 4 == 0
             write_query(network, cell, "<=", lower_bound_min - epsilon, coefficients, output_file)
         elseif i_linear % 4 == 1
             write_query(network, cell, "<=", lower_bound_min + epsilon, coefficients, output_file)
         elseif i_linear % 4 == 2
-            write_query(network, cell, ">=", upper_bound_min + epsilon, coefficients, output_file)
+            write_query(network, cell, ">=", upper_bound_max + epsilon, coefficients, output_file)
         elseif i_linear % 4 == 3
-            write_query(network, cell, ">=", upper_bound_min - epsilon, coefficients, output_file)
+            write_query(network, cell, ">=", upper_bound_max - epsilon, coefficients, output_file)
         end
         i_linear = i_linear + 1
     end
@@ -80,12 +84,12 @@ end
 function print_var_definition(io, network)
     # Define the input variables 
     for i = 1:size(network.layers[1].weights, 2)
-        println(io, string("declare-const X_", i-1, " Real)"))
+        println(io, string("(declare-const X_", i-1, " Real)"))
     end
 
     # Define the output variables
     for i = 1:size(network.layers[end].weights, 1)
-        println(io, string("declare-const Y_", i-1, " Real)"))
+        println(io, string("(declare-const Y_", i-1, " Real)"))
     end
 end
 
@@ -99,7 +103,7 @@ end
 
 # For now for simplicity we'll assume two-dimensional coefficients 
 function print_output_constraint(io, coefficients, symbol, value)
-    println(io, string("(assert (", symbol, " (+", coefficients[1], " Y_0 ", coefficients[2], "Y_1) ", value, "))"))
+    println(io, string("(assert (", symbol, " (+ (* ", coefficients[1], " Y_0) (* ", coefficients[2], " Y_1)) ", value, "))"))
 end
 
 # Small is 0.03, medium is 0.06, large is 0.12
@@ -119,7 +123,7 @@ lbs = [-0.8, -0.8, -1.0, -1.0]
 ubs = [0.8, 0.8, -0.85, -0.85]
 cells_per_dim = [1, 1, 5, 5]
 println("\n\n------------- Starting Small Edge Region -----------\n")
-generate_queries_for_region(lbs, ubs, cells_per_dim, network_file, query_base_name)
+#generate_queries_for_region(lbs, ubs, cells_per_dim, network_file, query_base_name)
 
 # Medium queries at the negative edge of the state space 
 # formed by splitting the state space into 5 cells along each axis
@@ -129,17 +133,17 @@ lbs = [-0.8, -0.8, -1.0, -1.0]
 ubs = [0.8, 0.8, -0.7, -0.7]
 cells_per_dim = [1, 1, 5, 5]
 println("\n\n------------- Starting Medium Edge Region -----------\n")
-generate_queries_for_region(lbs, ubs, cells_per_dim, network_file, query_base_name)
+#generate_queries_for_region(lbs, ubs, cells_per_dim, network_file, query_base_name)
 
 # Medium queries at the negative edge of the state space 
 # formed by splitting the state space into 5 cells along each axis
 # leading to 25 queries with width [full latent, full latent, 0.12, 0.12]
-query_base_name = "negative_edge_large"
+query_base_name = "queries/negative_edge_large"
 lbs = [-0.8, -0.8, -1.0, -1.0]
 ubs = [0.8, 0.8, -0.4, -0.4]
 cells_per_dim = [1, 1, 5, 5]
 println("\n\n------------- Starting Large Edge Region -----------\n")
-generate_queries_for_region(lbs, ubs, cells_per_dim, network_file, query_base_name)
+#generate_queries_for_region(lbs, ubs, cells_per_dim, network_file, query_base_name)
 
 
 # Small queries at the center of the state space 
@@ -150,7 +154,7 @@ lbs = [-0.8, -0.8, -0.075, -0.075]
 ubs = [0.8, 0.8, 0.075, 0.075]
 cells_per_dim = [1, 1, 5, 5]
 println("\n\n------------- Starting Small Center Region -----------\n")
-generate_queries_for_region(lbs, ubs, cells_per_dim, network_file, query_base_name)
+#generate_queries_for_region(lbs, ubs, cells_per_dim, network_file, query_base_name)
 
 # Medium queries at the center of the state space 
 # formed by splitting the state space into 3 cells along each axis
@@ -160,6 +164,15 @@ lbs = [-0.8, -0.8, -0.15, -0.15]
 ubs = [0.8, 0.8, 0.15, 0.15]
 cells_per_dim = [1, 1, 5, 5]
 println("\n\n------------- Starting Medium Center Region -----------\n")
+#generate_queries_for_region(lbs, ubs, cells_per_dim, network_file, query_base_name)
+
+
+# Test small upper right corner of state space 
+query_base_name = "queries/positive_edge_small"
+lbs = [-0.8, -0.8, 0.85, 0.85]
+ubs = [0.8, 0.8, 1.0, 1.0]
+cells_per_dim = [1, 1, 5, 5]
+println("\n\n------------- Starting Small Positive Edge Region -----------\n")
 generate_queries_for_region(lbs, ubs, cells_per_dim, network_file, query_base_name)
 
 
@@ -172,4 +185,5 @@ ubs = [0.8, 0.8, 0.3, 0.3]
 cells_per_dim = [1, 1, 5, 5]
 println("\n\n------------- Starting Large Center Region -----------\n")
 generate_queries_for_region(lbs, ubs, cells_per_dim, network_file, query_base_name)
+
 
