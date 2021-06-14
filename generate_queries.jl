@@ -31,17 +31,21 @@ function generate_queries_for_region(lbs, ubs, cells_per_dim, network_file, quer
     for i in CartesianIndices(cells)
         cell = cells[i]
         # Run the priority optimizer then the mip splitting optimizer
-        time_max = @elapsed x_star, lower_bound_max, upper_bound_max, steps_min = optimize_linear(network, cell, coefficients, params; maximize=true)
+        time_max = @elapsed x_star, lower_bound_max, upper_bound_max, steps_max = optimize_linear(network, cell, coefficients, params; maximize=true)
         times_max[i], lower_bounds_max[i], upper_bounds_max[i] = time_max, lower_bound_max, upper_bound_max
         
-        time_min = @elapsed x_star, lower_bound_min, upper_bound_min, steps_max = optimize_linear(network, cell, coefficients, params; maximize=false)
+        time_min = @elapsed x_star, lower_bound_min, upper_bound_min, steps_min = optimize_linear(network, cell, coefficients, params; maximize=false)
         times_min[i], lower_bounds_min[i], upper_bounds_min[i] = time_min, lower_bound_min, upper_bound_min
+
+	sample_time = @elapsed sample_lower, sample_upper = sample_based_bounds(network, cell, coefficients, 300) 
 
         println("Cell ", i)
         println("min and max solve steps: ", [steps_min, steps_max])
         println("lower, upper max: ", [lower_bound_max, upper_bound_max])
         println("lower, upper min: ", [lower_bound_min, upper_bound_min])
-        println("Time min: ", time_min, "  time max: ", time_max)
+	println("so our control interval is: ", [lower_bound_min, upper_bound_max])
+	println("compared to from sampling: ", [sample_lower, sample_upper])
+        println("Time min: ", time_min, "  time max: ", time_max, " time sample: ", sample_time)
 
         epsilon = 0.2 # amount off the true maximum or minimum to point the assertion
         # Write out the query, it should cycle between:
@@ -110,19 +114,21 @@ network_file = string(@__DIR__, "/networks/GANControl/full_mlp_best_conv.nnet")
 # Small queries at the negative edge of the state space 
 # formed by splitting the state space into 5 cells along each axis
 # leading to 25 queries with width [full latent, full latent, 0.03, 0.03]
-query_base_name = "negative_edge_small"
+query_base_name = "queries/negative_edge_small"
 lbs = [-0.8, -0.8, -1.0, -1.0]
 ubs = [0.8, 0.8, -0.85, -0.85]
 cells_per_dim = [1, 1, 5, 5]
+println("\n\n------------- Starting Small Edge Region -----------\n")
 generate_queries_for_region(lbs, ubs, cells_per_dim, network_file, query_base_name)
 
 # Medium queries at the negative edge of the state space 
 # formed by splitting the state space into 5 cells along each axis
 # leading to 25 queries with width [full latent, full latent, 0.06, 0.06]
-query_base_name = "negative_edge_medium"
+query_base_name = "queries/negative_edge_medium"
 lbs = [-0.8, -0.8, -1.0, -1.0]
 ubs = [0.8, 0.8, -0.7, -0.7]
 cells_per_dim = [1, 1, 5, 5]
+println("\n\n------------- Starting Medium Edge Region -----------\n")
 generate_queries_for_region(lbs, ubs, cells_per_dim, network_file, query_base_name)
 
 # Medium queries at the negative edge of the state space 
@@ -132,34 +138,38 @@ query_base_name = "negative_edge_large"
 lbs = [-0.8, -0.8, -1.0, -1.0]
 ubs = [0.8, 0.8, -0.4, -0.4]
 cells_per_dim = [1, 1, 5, 5]
+println("\n\n------------- Starting Large Edge Region -----------\n")
 generate_queries_for_region(lbs, ubs, cells_per_dim, network_file, query_base_name)
 
 
 # Small queries at the center of the state space 
 # formed by splitting the state space into 3 cells along each axis
 # leading to 100 queries with width [full latent, full latent, 0.03, 0.03]
-query_base_name = "center_small"
+query_base_name = "queries/center_small"
 lbs = [-0.8, -0.8, -0.075, -0.075]
 ubs = [0.8, 0.8, 0.075, 0.075]
 cells_per_dim = [1, 1, 5, 5]
+println("\n\n------------- Starting Small Center Region -----------\n")
 generate_queries_for_region(lbs, ubs, cells_per_dim, network_file, query_base_name)
 
 # Medium queries at the center of the state space 
 # formed by splitting the state space into 3 cells along each axis
 # leading to 100 queries with width [full latent, full latent, 0.03, 0.03]
-query_base_name = "center_medium"
+query_base_name = "queries/center_medium"
 lbs = [-0.8, -0.8, -0.15, -0.15]
 ubs = [0.8, 0.8, 0.15, 0.15]
 cells_per_dim = [1, 1, 5, 5]
+println("\n\n------------- Starting Medium Center Region -----------\n")
 generate_queries_for_region(lbs, ubs, cells_per_dim, network_file, query_base_name)
 
 
 # Large queries at the center of the state space 
 # formed by splitting the state space into 3 cells along each axis
 # leading to 100 queries with width [full latent, full latent, 0.03, 0.03]
-query_base_name = "center_medium"
+query_base_name = "queries/center_large"
 lbs = [-0.8, -0.8, -0.3, -0.3]
 ubs = [0.8, 0.8, 0.3, 0.3]
 cells_per_dim = [1, 1, 5, 5]
+println("\n\n------------- Starting Large Center Region -----------\n")
 generate_queries_for_region(lbs, ubs, cells_per_dim, network_file, query_base_name)
 
